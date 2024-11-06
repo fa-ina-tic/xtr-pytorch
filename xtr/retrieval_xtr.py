@@ -29,8 +29,7 @@ from faiss import write_index, read_index
 from typing import List, Dict, Optional, Union, Tuple
 from transformers import AutoTokenizer
 from transformers.utils import logging
-from .modeling_xtr import XtrModel
-from .configuration_xtr import XtrConfig
+from FlagEmbedding import BGEM3FlagModel
 
 logger = logging.get_logger(__name__)
 
@@ -41,28 +40,24 @@ class XtrRetriever(object):
                 use_faiss=False, 
                 device='cpu'
         ):
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        self.config = XtrConfig(model_name_or_path)
-        self.encoder = XtrModel(model_name_or_path, config=self.config, device=device)
+        self.model = BGEM3FlagModel('BAAI/bge-m3', devices=device)
         self.use_faiss = use_faiss
         self.device = device
-        self.max_seq_len = self.tokenizer.model_max_length
-        self.token_embed_dim = self.encoder.get_token_embed_dim()
+        self.max_seq_len = self.model.tokenizer.model_max_length
+        self.token_embed_dim = self.model.model.config.hidden_size
         self.doc_offset = 512 # max token length
 
     def tokenize(self, text):
-        return [self.tokenizer.id_to_string(id_).numpy().decode('utf-8') for id_ in self.tokenizer.tokenize(text)]
+        return [self.model.tokenizer.id_to_string(id_).numpy().decode('utf-8') for id_ in self.tokenizer.tokenize(text)]
 
     def get_token_embeddings(self, texts):
-        encoded_inputs = self.tokenizer(texts, return_tensors='pt',padding='max_length', truncation=True, max_length=self.max_seq_len).to(device=self.device)
-
-        with torch.no_grad():
-            batch_embeds = self.encoder(**encoded_inputs)
-            
-        batch_lengths = np.sum(encoded_inputs['attention_mask'].cpu().numpy(), axis=1)
+        encoded_inputs = self.model.tokenizer(texts, return_tensors='pt', padding=True, truncation=True, max_length=self.max_seq_len)
         
-        return batch_embeds.cpu().numpy(), batch_lengths
+        with torch.no_grad():
+            batch_embeds = self.model.encode(texts, return_dense=False, return_colbert_vecs=True)["colbert_vecs"]
+
+        batch_lengths = np.sum(encoded_inputs['attention_mask'].cpu().numpy(), axis=1) -1 # exclude cls token
+        return batch_embeds, batch_lengths
 
     def get_flatten_embeddings(self, batch_text, return_last_offset=False):
         batch_embeddings, batch_lengths = self.get_token_embeddings(batch_text)
@@ -314,3 +309,184 @@ class XtrRetriever(object):
             return self.get_document_text(batch_ranking), batch_result
         else:
             return batch_ranking, batch_result
+
+if __name__ == "__main__":
+    retriever = XtrRetriever(model_name_or_path="BAAI/bge-m3",
+                                cache_dir='./.cache',
+                                use_faiss=False,
+                                device='cuda')
+    documents = ["hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                "hello", "how are you", "I'm fine thank you",
+                ]
+    retriever.build_index(documents)
+    query = "thank you"
+
+    retrieved_docs, metadata = retriever.retrieve_docs([query], document_top_k=1)
+    for rank, (did, score, doc) in enumerate(retrieved_docs[0]):
+        print(f"[{rank}] doc={did} ({score:.3f}): {doc}")
